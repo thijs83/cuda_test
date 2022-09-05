@@ -1,0 +1,71 @@
+name: ROS test
+
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  Ros_test:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout
+      # Get the github code repository
+      uses: actions/checkout@v2
+
+    - name: Build Docker Image
+      # Build docker with ros environment
+      uses: docker/build-push-action@v3
+      with:
+        tags: ros_test
+        file: .github/workflows/Dockerfile 
+
+    - name: Compile with Catkin Tools
+      uses: addnab/docker-run-action@v3
+      with:
+        image: ros_test
+        options:  -v ${{github.workspace}}/src:/ros/src/
+        run: |
+          catkin config --workspace /ros/ --init --extend /opt/ros/noetic --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          catkin build --workspace /ros/ --interleave-output --verbose
+
+    - name: Compile with Catkin Make
+      uses: addnab/docker-run-action@v3
+      with:
+        image:    ros_test
+        options:  -v ${{github.workspace}}:/ros
+        shell:    bash
+        run: |
+          source /opt/ros/noetic/setup.bash
+          cd /ros
+          catkin_make -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+    - name: Check c++ Format
+      uses: addnab/docker-run-action@v3
+      with:
+        image:    ros_test
+        options:  -v ${{github.workspace}}:/ros
+        shell:    bash
+        run: |
+          source /ros/devel/setup.bash
+          cmake --build /ros/build --target check-format
+    
+    - name: Check Python Format (pycodestyle is a formatter and linter)
+      uses: addnab/docker-run-action@v3
+      with:
+        image:    ros_test
+        options:  -v ${{github.workspace}}:/ros
+        shell:    bash
+        run: |
+          source /ros/devel/setup.bash
+          cmake --build /ros/build --target check-pyformat
+
+    - name: Check Linting
+      uses: addnab/docker-run-action@v3
+      with:
+        image:    ros_test
+        options:  -v ${{github.workspace}}:/ros
+        shell:    bash
+        run: |
+          source /ros/devel/setup.bash
+          cmake --build /ros/build --target check-tidy
